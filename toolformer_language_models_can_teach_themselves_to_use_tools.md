@@ -1,0 +1,79 @@
+# Toolformer: Language Models Can Teach Themselves to Use Tools
+## 1 Introduction
+The Toolformer model, presented in this paper, is a new approach to learning to use external tools to perform precise calculations and access up-to-date information. This is achieved through a self-supervised learning process, so it requires less human annotation. Toolformer uses large language models, generating datasets from scratch and then fine-tuning on API calls considered useful. The model performs well on zero-shot results for various downstream tasks, outperforming other baselines, including larger GPT-3 models. One of the additional advantages of Toolformer is that it retains its generality and autonomy for deciding the best way and time to use a tool. 
+
+Key takeaways:
+* Toolformer performs precise calculations and accesses up-to-date information through a self-supervised learning process, and it requires less human annotation.
+* Toolformer uses large language models and generates datasets from scratch, then fine-tuning on relevant API calls.
+* Toolformer outperforms many other baselines, including larger GPT-3 models, performing well with zero-shot results for different downstream tasks.
+* Toolformer retains generality and autonomy to decide how to use a tool comprehensively and not tied to a specific task.
+
+## 2 Approach
+The paper introduces "ToolFormer", an approach that trains pre-trained language models to learn to use APIs. The four key steps of ToolFormer are: (1) Extraction, (2) Filtering, (3) Augmentation, and (4) Fine-tuning. By converting raw text into a dataset augmented with API calls, the language model is trained to use different tools filtering through executed and tested API responses. The resulting model is capable of generating human-like text with more specific content based on external knowledge.
+
+Key takeaways:
+* ToolFormer trains pre-trained language models to learn to use APIs.
+* The four key steps are: Extraction, Filtering, Augmentation, and Fine-tuning.
+* Language models are trained to use different tools via API calls.
+* The model is capable of generating human-like text with more specific content based on external knowledge.
+
+## 3 Tools
+The paper introduces five different tools that can be used with language models to enhance their performance, including a question answering system, search engine, calculator, calendar, and machine translation system. The tools, which have text input and output, can improve the accuracy of LMs in tasks ranging from numeric calculations to language translation. While some tasks can be completed directly by the calculator and calendar, the search engine requires independent extraction of relevant parts. The machine translation model, which uses 600M parameters and can detect source languages using a fastText classifier, is capable of translating text from 200 languages to English.
+
+Key takeaways:
+* Five different tools can improve the performance of language models on various tasks.
+* The tools include a question answering system, a search engine, a calculator, a calendar, and a machine translation system.
+* The search engine requires independent extraction of relevant parts, while the calculator and calendar can provide direct answers.
+* The machine translation model can translate text from 200 languages to English and automatically detect source languages using a fastText classifier.
+
+## 4 Experiments
+The paper's authors conducted four experiments to test Toolformer, a language model designed to use external tools to improve downstream task performance, on tasks including mathematical reasoning, question answering, multilingual question answering, and temporal datasets. Using a subset of CCNet and GPT-J, the model was fine-tuned on an augmented dataset and evaluated in more challenging zero-shot setups without specifying which tools to use. Results showed that Toolformer outperformed other models for most tasks and model size did not significantly impact performance improvement. The authors suggest improving external tool functionality for even better performance in the future.
+
+Key takeaways:
+* Toolformer enhances a language model's core language modeling abilities through improved tool usage
+* Toolformer outperforms other models in most downstream tasks
+* Model size does not significantly impact Toolformer's performance enhancement
+* Better external tool functionality could enhance performance even further
+
+## 5 Analysis
+The paper discusses Toolformer, a method for fine-tuning language models to enable programmatically calling APIs for advanced question-answering. It also introduces alternative decoding strategies to help calibrate API calls. The probability-based approach where k of the most likely API calls are used is found to be effective for syntactic tasks. The paper concludes that Toolformer helps models to reduce perplexity and find useful API calls by providing qualitative analysis, including scores, of example API calls.
+
+Key takeaways:
+* Toolformer fine-tunes language models for advanced question-answering through programmatically calling APIs.
+* Alternative decoding strategies, such as using k of the most likely API calls instead of just the most likely, can better calibrate which API calls to make.
+* Toolformer helps models reduce perplexity and find useful API calls, especially for syntactic tasks.
+
+## 6 Related Work
+Researchers have used various approaches to augment language models with additional information during pre-training or external tools, such as search engines, web browsers, calculators, translation systems, and Python interpreters. Some approaches rely on large amounts of human supervision, while others work on self-supervised learning like Toolformer. Self-training and bootstrapping techniques have been investigated in a variety of contexts.
+
+Key takeaways:
+* Textual information is added to language models during pretraining.
+* Language models can be equipped with various external tools.
+* Two approaches exist for using tools: relying on large amounts of human supervision or bootstrapping and self-training.
+* Self-training techniques have been investigated in numerous contexts.
+
+## 7 Limitations
+The Toolformer method has several limitations. It cannot use tools in a chain or interactively, and models trained with Toolformer are sensitive to the exact wording of their input. Tool sample-inefficiency and excessive iterations reveal further limitations. Toolformer does not yet consider tool-dependent computational costs or API calls in its implementation.
+
+Key takeaways:
+* Toolformer can’t use tools in a chain or interactively yet
+* Toolformer models are sensitive to the exact wording of inputs
+* Tool sample-inefficiency and excessive iterations are further limitations
+* Toolformer does not consider tool-dependent computational costs or API calls
+
+## 8 Conclusion
+Toolformer is introduced as a language model that can learn to use tools such as search engines, calculators, and translation systems via simple API calls. The model was finetuned on numerous API calls which significantly improved zero-shot performance of a 6.7B parameter GPT-J model, surpassing even a much bigger GPT-3 model on various downstream tasks.
+ 
+Key takeaways:
+* Toolformer can use various tools in a self-supervised way.
+* Toolformer improved zero-shot performance for a 6.7B parameter GPT-J model.
+* Toolformer surpassed a much bigger GPT-3 model for different downstream tasks.
+
+## Summary
+The Toolformer model uses self-supervised learning to teach itself to use tools via API calls for precise calculations and up-to-date information. It performs well on various downstream tasks and retains its autonomy for deciding the best way and time to use a tool. The method involves Extraction, Filtering, Augmentation, and Fine-tuning. Limitations include sensitivity to wording, sample inefficiency, and tool-dependent computational costs. Toolformer can outperform even larger GPT-3 models.
+
+Key takeaways:
+* Toolformer uses self-supervised learning and API calls to use tools for precise calculations and up-to-date information.
+* It outperforms even larger GPT-3 models and has autonomy in tool selection.
+* Limitations include sensitivity to wording, sample inefficiency, and tool-dependent computational costs.
+
