@@ -9,7 +9,33 @@ import time
 
 USE_STREAMING = True
 SAMPLE_URL = "https://ar5iv.labs.arxiv.org/html/2305.10403"
-claude = anthropic.Client(os.environ["ANTHROPIC_API_KEY"])
+# Max number of messages to keep
+MAX_MESSAGE_HISTORY_LENGTH = 6
+
+
+class Role:
+    """Enum for role, either human or assistant."""
+    HUMAN = "human"
+    ASSISTANT = "assistant"
+
+class Message:
+    """Holds previous chat messages to Claude."""
+    def __init__(self, role: Role, content: str):
+        self.role = role
+        self.content = content
+
+    def _prompt(self) -> str:
+        """Returns the prompt for the message."""
+        if self.role == Role.HUMAN:
+            return anthropic.HUMAN_PROMPT
+        elif self.role == Role.ASSISTANT:
+            return anthropic.AI_PROMPT
+        else:
+            raise ValueError("Invalid role")
+    
+    def __str__(self) -> str:
+        """Returns the message as a string."""
+        return f"{self._prompt()} {self.content}"
 
 def num_tokens_from_string(string: str) -> int:
     """Returns the number of tokens in a text string."""
@@ -17,19 +43,32 @@ def num_tokens_from_string(string: str) -> int:
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
-def get_completion(text: str, prompt: str, max_tokens_to_sample: int = 1000) -> str:
+def messages_to_string(messages: list[Message]) -> str:
+    """Converts a list of messages to a string."""
+    result = ""
+    for message in messages:
+        result += str(message)
+    return result
+
+def get_completion(text: str, prompt: str, max_tokens_to_sample: int = 2000) -> str:
     """Calls Anthropic for completion.""" 
-    response = claude.completion(
-        prompt=f"""{anthropic.HUMAN_PROMPT} You are an expert summarizer and ML researcher.
-You are provided a full paper below:
+    claude = anthropic.Client(os.environ["ANTHROPIC_API_KEY"])
+    prompt = f"""{anthropic.HUMAN_PROMPT} You are an expert summarizer and ML researcher.
+You are provided a full paper below scraped from HTML format:
 ```
 {text}
 ```
-Given the paper contents, answer the following prompt or question:
-{prompt}
 
-{anthropic.AI_PROMPT}
-""",
+If provided, the most recent messages are provided below:
+```{messages_to_string(messages)}
+```
+
+Given the paper contents, answer the user's prompt or question.
+Use a format suitable for a terminal or command line interface.
+If you quote the paper directly, remove any HTML artifacts.
+{anthropic.HUMAN_PROMPT} {prompt} {anthropic.AI_PROMPT}"""
+    response = claude.completion(
+        prompt=prompt,
         stop_sequences=[anthropic.HUMAN_PROMPT],
         model="claude-instant-v1-100k",
         max_tokens_to_sample=max_tokens_to_sample,
@@ -38,18 +77,30 @@ Given the paper contents, answer the following prompt or question:
     completion = response["completion"]
     return completion
 
-def get_completion_streaming(text: str, prompt: str, max_tokens_to_sample: int = 1000) -> str:
-    response = claude.completion_stream(
-        prompt=f"""{anthropic.HUMAN_PROMPT} You are an expert summarizer and ML researcher.
-You are provided a full paper below:
+def get_completion_streaming(
+    text: str,
+    prompt: str,
+    messages: list[Message] = None,
+    max_tokens_to_sample: int = 2000
+) -> str:
+    """Calls Anthropic for completion using streaming."""
+    claude = anthropic.Client(os.environ["ANTHROPIC_API_KEY"])
+    prompt = f"""{anthropic.HUMAN_PROMPT} You are an expert summarizer and ML researcher.
+You are provided a full paper below scraped from HTML format:
 ```
 {text}
 ```
-Given the paper contents, answer the following prompt or question:
-{prompt}
 
-{anthropic.AI_PROMPT}
-""",
+If provided, the most recent messages are provided below:
+```{messages_to_string(messages)}
+```
+
+Given the paper contents, answer the user's prompt or question.
+Use a format suitable for a terminal or command line interface.
+If you quote the paper directly, remove any HTML artifacts.
+{anthropic.HUMAN_PROMPT} {prompt} {anthropic.AI_PROMPT}"""
+    response = claude.completion_stream(
+        prompt=prompt,
         stop_sequences=[anthropic.HUMAN_PROMPT],
         model="claude-instant-v1-100k",
         max_tokens_to_sample=max_tokens_to_sample,
@@ -63,7 +114,7 @@ Given the paper contents, answer the following prompt or question:
         prev_string = data["completion"]
         print(diff, end="", flush=True)
     print()
-    return prev_string
+    return prev_string, prompt
 
 def main():
     # Ask user for URL, or use default. Use bold text.
@@ -102,15 +153,19 @@ def main():
 
     # Get string from HTML
     text = soup.get_text()
+    total_num_tokens = num_tokens_from_string(text)
 
-    print(colored(f"Number of tokens: {num_tokens_from_string(text)}", "green"))
+    print(colored(f"Number of tokens: {total_num_tokens}", "green"))
 
-    # Loop until the user quits. Ask for question and print completion
+    messages: list[Message] = []
+
+    # Loop until the user quits.
     while(True):
-        prompt = input(colored("Question: ", attrs=["bold"]))
-        if prompt == "":
+        user_prompt = input(colored("Question: ", attrs=["bold"]))
+        if user_prompt == "":
             print(colored("Please enter a valid question or 'quit' to exit.", "red"))
-        elif prompt == "quit":
+            continue
+        elif user_prompt == "quit":
             break
 
         # Time the completion
@@ -119,23 +174,38 @@ def main():
         print(colored("Generating completion...", "yellow"))
         if USE_STREAMING:
             print(colored("Completion:", attrs=["bold"]))
-            completion = get_completion_streaming(text, prompt)
+            completion, full_prompt = get_completion_streaming(
+                text, user_prompt, messages=messages)
         else:
-            completion = get_completion(text, prompt)
+            completion = get_completion(text, user_prompt)
             print(colored("Completion:\n", attrs=["bold"]), completion.strip())
 
+        # Add the user_prompt and completion to messages
+        messages.append(Message(role=Role.HUMAN, content=user_prompt))
+        messages.append(Message(role=Role.ASSISTANT, content=completion))
+
+        # Pop from front until less than 6 messages
+        while len(messages) > MAX_MESSAGE_HISTORY_LENGTH:
+            messages.pop(0)
+
+        ## Generate time and cost metadata
         end = time.time()
-        print(colored(f"Completion time: {end - start}", "green"))
+        print(colored(f"Completion time: {end - start:.2f} seconds", "green"))
         # Print token count
+        num_prompt_tokens = num_tokens_from_string(full_prompt)
         num_completion_tokens = num_tokens_from_string(completion)
+        print(colored(f"Number of prompt tokens: {num_prompt_tokens}", "green"))
         print(colored(f"Number of completion tokens: {num_completion_tokens}", "green"))
 
         # Given the following info, price the completion
         # Prompt: $1.63/million tokens Completion: $5.51/million tokens
-        prompt_cost = 1.63 * num_tokens_from_string(prompt) / 1000000
+        prompt_cost = 1.63 * num_prompt_tokens / 1000000
         completion_cost = 5.51 * num_tokens_from_string(completion) / 1000000
         total_cost = prompt_cost + completion_cost
-        print(colored(f"Approximate Cost: ${round(prompt_cost, 5)} + ${round(completion_cost, 5)} = ${round(total_cost, 5)}", "green"))
+        print(colored(
+            f"Approximate Cost: ${prompt_cost:.6f} + ${completion_cost:.6f} = ${total_cost:.6f}",
+            "green"
+        ))
 
 
 if __name__ == "__main__":
