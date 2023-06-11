@@ -3,7 +3,7 @@
 import json
 import requests
 from bs4 import BeautifulSoup
-import summarize
+import summarize.summarize as summarize
 
 # URL of the ArXiv HTML page to download
 url = "https://ar5iv.labs.arxiv.org/html/2302.04761"
