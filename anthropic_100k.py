@@ -1,16 +1,16 @@
 import anthropic
 from bs4 import BeautifulSoup
+import ingest
 import os
 import requests
-import sys
 from termcolor import colored
 import tiktoken
 import time
 
 USE_STREAMING = True
 SAMPLE_URL = "https://ar5iv.labs.arxiv.org/html/2305.10403"
-# Max number of messages to keep
-MAX_MESSAGE_HISTORY_LENGTH = 6
+# Max number of individual messages to keep
+MAX_MESSAGE_HISTORY_LENGTH = 10
 
 
 class Role:
@@ -50,10 +50,16 @@ def messages_to_string(messages: list[Message]) -> str:
         result += str(message)
     return result
 
-def get_completion(text: str, prompt: str, max_tokens_to_sample: int = 2000) -> str:
+def get_completion(
+        text: str,
+        prompt: str,
+        messages: list[Message] = None,
+        max_tokens_to_sample: int = 2000
+    ) -> str:
     """Calls Anthropic for completion.""" 
     claude = anthropic.Client(os.environ["ANTHROPIC_API_KEY"])
-    prompt = f"""{anthropic.HUMAN_PROMPT} You are an expert summarizer and ML researcher.
+    prompt = f"""{anthropic.HUMAN_PROMPT}
+System: You are an expert researcher and summarizer.
 You are provided a full paper below scraped from HTML format:
 ```
 {text}
@@ -85,7 +91,8 @@ def get_completion_streaming(
 ) -> str:
     """Calls Anthropic for completion using streaming."""
     claude = anthropic.Client(os.environ["ANTHROPIC_API_KEY"])
-    prompt = f"""{anthropic.HUMAN_PROMPT} You are an expert summarizer and ML researcher.
+    prompt = f"""{anthropic.HUMAN_PROMPT}
+System: You are an expert researcher and summarizer.
 You are provided a full paper below scraped from HTML format:
 ```
 {text}
@@ -99,6 +106,7 @@ Given the paper contents, answer the user's prompt or question.
 Use a format suitable for a terminal or command line interface.
 If you quote the paper directly, remove any HTML artifacts.
 {anthropic.HUMAN_PROMPT} {prompt} {anthropic.AI_PROMPT}"""
+    print(colored(f"Prompt:\n{prompt}", attrs=["bold"]))
     response = claude.completion_stream(
         prompt=prompt,
         stop_sequences=[anthropic.HUMAN_PROMPT],
@@ -118,14 +126,13 @@ If you quote the paper directly, remove any HTML artifacts.
 
 def main():
     # Ask user for URL, or use default. Use bold text.
-    paper_url = input(colored("arxiv or ar5iv URL: ", attrs=["bold"]))
+    paper_url = input(colored("arxiv or ar5iv URL: ", attrs=["bold"])).strip()
 
     if paper_url == "":
         paper_url = SAMPLE_URL
 
     # Validate that it is a ar5iv URL
     while not paper_url.startswith("https://ar5iv.labs.arxiv.org/html/"):
-        # See if it is an arxiv URL or document ID
         if paper_url.startswith("https://arxiv.org/abs/"):
             # Convert to ar5iv URL
             paper_url = paper_url.replace("https://arxiv.org/abs/", "https://ar5iv.labs.arxiv.org/html/")
@@ -133,28 +140,36 @@ def main():
         elif paper_url.startswith("https://arxiv.org/pdf/"):
             # Convert to ar5iv URL
             paper_url = paper_url.replace("https://arxiv.org/pdf/", "https://ar5iv.labs.arxiv.org/html/")
-            # Remove .pdf extension
             paper_url = paper_url[:-4]
             break
 
         print(colored("Please enter a valid arxiv or ar5iv URL.", "red"))
-        paper_url = input(colored("arxiv or ar5iv URL: ", attrs=["bold"]))
+        paper_url = input(colored("arxiv or ar5iv URL: ", attrs=["bold"])).strip()
 
     print(colored(f"ar5iv URL: {paper_url}", "green"))
 
     # Send a GET request to the URL and store the response
     response = requests.get(paper_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
 
-    # Parse the HTML content using BeautifulSoup
-    soup = BeautifulSoup(response.content, "html.parser")
+    # Check for redirect to arxiv
+    if response.url.startswith("https://arxiv.org/abs/"):
+        print(colored("Redirected to arxiv.org. Falling back to PDF import.", "red"))
+        # Convert to arxiv PDF URL
+        paper_url = paper_url.replace("https://ar5iv.labs.arxiv.org/html/", "https://arxiv.org/pdf/")
+        paper_url += ".pdf"
+        text = ingest.download_pdf(paper_url)
+    else:
+        print(colored("HTML content retrieved.", "green"))
+        # Parse the HTML content using BeautifulSoup
+        soup = BeautifulSoup(response.content, "html.parser")
 
-    # Print out the title of the paper
-    print(colored(f"Title: {soup.title.string}", "green"))
+        # Print out the title of the paper
+        print(colored(f"Title: {soup.title.string}", "green"))
 
-    # Get string from HTML
-    text = soup.get_text()
+        # Get string from HTML
+        text = soup.get_text()
+
     total_num_tokens = num_tokens_from_string(text)
-
     print(colored(f"Number of tokens: {total_num_tokens}", "green"))
 
     messages: list[Message] = []
@@ -184,7 +199,7 @@ def main():
         messages.append(Message(role=Role.HUMAN, content=user_prompt))
         messages.append(Message(role=Role.ASSISTANT, content=completion))
 
-        # Pop from front until less than 6 messages
+        # Pop from front until less than N messages
         while len(messages) > MAX_MESSAGE_HISTORY_LENGTH:
             messages.pop(0)
 
