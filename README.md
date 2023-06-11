@@ -18,3 +18,10 @@ export ANTHROPIC_API_KEY=YOUR_KEY
 ```
 python3 anthropic_100k.py
 ```
+
+## TODOs
+- [ ] Add onboarding workflow (learning type, educational background)  
+- [ ] Support other LLMs (Mosaic, OpenAI)  
+- [ ] Upload from other sites  
+- [ ] Upload directly from PDF or doc  
+- [ ] Web UI  
